@@ -1,3 +1,5 @@
+[**中文版**](README.zh-CN.md)
+
 # Share Context
 
 Cross-AI Agent CLI context synchronization tool.
