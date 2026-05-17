@@ -6,6 +6,7 @@ import { ContextManager } from './context-manager';
 import { SessionSummary } from './storage';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
 function missingArg(name: string): never {
   console.error(`Error: required option '${name}' not provided`);
@@ -198,53 +199,133 @@ program
 
 // ─── install ────────────────────────────────────────────────────────
 
+const SC_SLASH_COMMANDS = {
+  'sc:save': {
+    description: 'Save current session context to share-context',
+    command: 'share-context save',
+  },
+  'sc:resume': {
+    description: 'Select and resume a previous session from share-context',
+    command: 'share-context resume',
+  },
+  'sc:status': {
+    description: 'Show share-context session dashboard',
+    command: 'share-context status',
+  },
+};
+
+const AGENT_DIR = path.resolve(__dirname, '..');
+
+const agents = [
+  {
+    name: 'opencode',
+    desc: 'OpenCode AI',
+    type: 'project' as const,
+    install: (root: string) => {
+      const configPath = path.join(root, 'opencode.json');
+      if (fs.existsSync(configPath)) {
+        const raw = fs.readFileSync(configPath, 'utf-8');
+        let config: { commands?: Record<string, unknown> };
+        try { config = JSON.parse(raw); } catch {
+          console.error(`Could not parse ${configPath}. Add manually.`);
+          console.log(JSON.stringify(SC_SLASH_COMMANDS, null, 2));
+          return;
+        }
+        config.commands = { ...(config.commands || {}), ...SC_SLASH_COMMANDS };
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+      } else {
+        fs.writeFileSync(configPath, JSON.stringify({ commands: SC_SLASH_COMMANDS }, null, 2) + '\n');
+      }
+      const names = Object.keys(SC_SLASH_COMMANDS).map(k => `/${k}`).join(', ');
+      console.log(`✅ ${names} registered in ${configPath}`);
+    },
+  },
+  {
+    name: 'claude',
+    desc: 'Claude Code',
+    type: 'project' as const,
+    install: (root: string) => {
+      const claudePath = path.join(root, 'CLAUDE.md');
+      const section = [
+        '',
+        '## Share Context (cross-agent sync)',
+        '',
+        'Saved sessions are in `.share-context/share-context.db`.',
+        '',
+        '- `share-context save` — save current session before switching',
+        '- `share-context resume` — browse and load a prior session',
+        '- `share-context list` — list all saved sessions',
+        '- `share-context status` — show session dashboard',
+        '- `share-context handoff --from claude --to <agent> --task "..."` — handoff work',
+        '',
+      ].join('\n');
+
+      if (fs.existsSync(claudePath)) {
+        const existing = fs.readFileSync(claudePath, 'utf-8');
+        if (existing.includes('## Share Context')) {
+          console.log(`ℹ️  Share Context section already in ${claudePath}`);
+          return;
+        }
+        fs.appendFileSync(claudePath, section + '\n');
+      } else {
+        fs.writeFileSync(claudePath, section.trimStart() + '\n');
+      }
+      console.log(`✅ Share Context usage appended to ${claudePath}`);
+    },
+  },
+  {
+    name: 'codex',
+    desc: 'Codex CLI',
+    type: 'user' as const,
+    install: () => {
+      const targetDir = path.join(os.homedir(), '.codex', 'skills', 'share-context');
+      const targetFile = path.join(targetDir, 'SKILL.md');
+      const src = path.join(AGENT_DIR, 'adapters', 'codex', 'SKILL.md');
+      if (!fs.existsSync(src)) {
+        console.error(`Adapter file not found: ${src}`);
+        process.exit(1);
+      }
+      fs.mkdirSync(targetDir, { recursive: true });
+      fs.cpSync(src, targetFile, { force: true });
+      console.log(`✅ Copied to ${targetFile}`);
+      console.log('   Codex CLI will auto-detect this skill on next launch.');
+    },
+  },
+  {
+    name: 'gemini',
+    desc: 'Gemini CLI',
+    type: 'user' as const,
+    install: () => {
+      const targetDir = path.join(os.homedir(), '.gemini', 'skills', 'share-context');
+      const targetFile = path.join(targetDir, 'SKILL.md');
+      const src = path.join(AGENT_DIR, 'adapters', 'gemini', 'SKILL.md');
+      if (!fs.existsSync(src)) {
+        console.error(`Adapter file not found: ${src}`);
+        process.exit(1);
+      }
+      fs.mkdirSync(targetDir, { recursive: true });
+      fs.cpSync(src, targetFile, { force: true });
+      console.log(`✅ Copied to ${targetFile}`);
+      console.log('   Gemini CLI will auto-detect this skill on next launch.');
+    },
+  },
+];
+
 program
   .command('install')
-  .description('Add share-context slash commands to an agent')
-  .argument('<agent>', 'Agent name: opencode')
-  .option('--project <path>', 'Project root')
+  .description('Register share-context commands for an AI coding agent')
+  .argument('<agent>', `Agent: ${agents.map(a => a.name).join(', ')}`)
+  .option('--project <path>', 'Project root (for project-level installs)')
   .action((agent, opts) => {
-    if (agent !== 'opencode') {
-      console.error(`Unknown agent: ${agent}. Supported: opencode`);
+    const match = agents.find(a => a.name === agent);
+    if (!match) {
+      console.error(`Unknown agent: ${agent}`);
+      console.error(`Supported: ${agents.map(a => `${a.name} (${a.desc})`).join(', ')}`);
       process.exit(1);
     }
 
-    const commands = {
-      'sc:save': {
-        description: 'Save current session context to share-context',
-        command: 'share-context save',
-      },
-      'sc:resume': {
-        description: 'Select and resume a previous session from share-context',
-        command: 'share-context resume',
-      },
-      'sc:status': {
-        description: 'Show share-context session dashboard',
-        command: 'share-context status',
-      },
-    };
-
-    const projectRoot = resolveProject(opts.project);
-    const configPath = path.join(projectRoot, 'opencode.json');
-
-    if (fs.existsSync(configPath)) {
-      const raw = fs.readFileSync(configPath, 'utf-8');
-      let config: { commands?: Record<string, unknown> };
-      try {
-        config = JSON.parse(raw);
-      } catch {
-        console.error(`Could not parse ${configPath}. Add these commands manually:`);
-        console.log(JSON.stringify(commands, null, 2));
-        process.exit(1);
-      }
-      config.commands = { ...(config.commands || {}), ...commands };
-      fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
-    } else {
-      fs.writeFileSync(configPath, JSON.stringify({ commands }, null, 2) + '\n');
-    }
-
-    const names = Object.keys(commands).map(k => `/${k}`).join(', ');
-    console.log(`✅ Slash commands registered in ${configPath}: ${names}`);
+    const root = match.type === 'project' ? resolveProject(opts.project) : os.homedir();
+    match.install(root);
   });
 
 // ─── handoff ────────────────────────────────────────────────────────

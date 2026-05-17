@@ -37,20 +37,30 @@ npm link
 
 ## Quick start
 
-### 1. Register slash commands (OpenCode)
+### 1. Register commands for your agent
 
 ```bash
 cd your-project
-share-context install opencode
+share-context install opencode     # OpenCode — adds /sc:save, /sc:resume, /sc:status
+share-context install claude       # Claude Code — appends instructions to CLAUDE.md
+share-context install codex        # Codex CLI — copies skill to ~/.codex/skills/
+share-context install gemini       # Gemini CLI — copies skill to ~/.gemini/skills/
 ```
 
-This registers three commands in `opencode.json`:
+For **OpenCode**, three slash commands are registered in `opencode.json`:
 
 | Command | Action |
 |---|---|
 | `/sc:save` | Save current session |
 | `/sc:resume` | Browse and resume a previous session |
 | `/sc:status` | Show session dashboard |
+
+For **Claude Code**, usage instructions are appended to `CLAUDE.md`.
+
+For **Codex CLI** and **Gemini CLI**, the agent's skill file is placed in the correct directory; the agent auto-detects it on next launch.
+
+> Any agent works out of the box — just run `share-context save` / `share-context resume` directly.
+> `install` is a convenience for registering shortcuts.
 
 ### 2. Save a session
 

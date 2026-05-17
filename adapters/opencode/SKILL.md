@@ -5,9 +5,13 @@ Cross-agent context synchronization for OpenCode. Save your session before switc
 ## Quick Registration
 
 ```bash
-share-context install opencode
+share-context install opencode     # registers /sc:save, /sc:resume, /sc:status
+share-context install claude       # appends instructions to CLAUDE.md
+share-context install codex        # copies skill to ~/.codex/skills/
+share-context install gemini       # copies skill to ~/.gemini/skills/
 ```
-Auto-registers `/sc:save`, `/sc:resume`, `/sc:status` in `opencode.json`.
+
+For OpenCode, auto-registers `/sc:save`, `/sc:resume`, `/sc:status` in `opencode.json`.
 
 ## Slash Commands
 
