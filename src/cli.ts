@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { search, input } from '@inquirer/prompts';
+import { search, input, checkbox } from '@inquirer/prompts';
 import { ContextManager } from './context-manager';
 import { SessionSummary } from './storage';
 import path from 'path';
@@ -311,19 +311,42 @@ const agents = [
   },
 ];
 
+async function interactiveInstall(opts: { project?: string }) {
+  const choices = agents.map(a => ({
+    name: `${a.name.padEnd(8)} ${a.desc.padEnd(16)} ${a.type === 'project' ? '(project)' : '(user)'}`,
+    value: a,
+    checked: false,
+  }));
+  const selected = await checkbox({
+    message: 'Select agents to install share-context:',
+    choices,
+  });
+  if (selected.length === 0) {
+    console.log('No agents selected. Run `share-context install <agent>` for a specific agent.');
+    return;
+  }
+  for (const match of selected) {
+    const root = match.type === 'project' ? resolveProject(opts.project) : os.homedir();
+    match.install(root);
+  }
+}
+
 program
   .command('install')
   .description('Register share-context commands for an AI coding agent')
-  .argument('<agent>', `Agent: ${agents.map(a => a.name).join(', ')}`)
+  .argument('[agent]', `Agent: ${agents.map(a => a.name).join(', ')} (omit for interactive)`)
   .option('--project <path>', 'Project root (for project-level installs)')
-  .action((agent, opts) => {
+  .action(async (agent, opts) => {
+    if (!agent) {
+      await interactiveInstall(opts);
+      return;
+    }
     const match = agents.find(a => a.name === agent);
     if (!match) {
       console.error(`Unknown agent: ${agent}`);
       console.error(`Supported: ${agents.map(a => `${a.name} (${a.desc})`).join(', ')}`);
       process.exit(1);
     }
-
     const root = match.type === 'project' ? resolveProject(opts.project) : os.homedir();
     match.install(root);
   });
